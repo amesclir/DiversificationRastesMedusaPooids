@@ -37,11 +37,38 @@ for (i in 1:length(mytrees)) mytrees2[[i]] <- drop.tip(mytrees[[i]], tipstoremov
 class(mytrees2) <- "multiPhylo"
 ```
 
-4. The analysis with one tree and one richness
+4. The analysis with one tree and one species richness (first GRIN database, then GGW database)
 
 ```{r}
 
+#GRIN database
+result1 <- runMedusa(mytree, richness[2:3], estimateExtinction=T, modelLimit=53, cutAtStem=T, startR = 0.05, startE = 0.5)
+result2 <- summaryMedusa(mytree, richness[2:3], result1, cutoff=4, plotTree=F, useCorrection=F, cutAtStem=T)
+#CGW database
+result3 <- runMedusa(mytree, richness[-c(1,3:5,7:8)], estimateExtinction=T, modelLimit=53, cutAtStem=T, startR = 0.05, startE = 0.5)
+result4 <- summaryMedusa(mytree, richness[-c(1,3:5,7:8)], result3, cutoff=4, plotTree=T, useCorrection=F, cutAtStem=T)
 
 
 ```
 
+5. The analysis with one tree and 500 species richness (first GRIN database, then GGW database)
+
+```{r}
+
+richnessmatrix <- matrix(0, 26, 500)
+for (i in 1:500) {
+for (j in 1:26) richnessmatrix[j,i] <- as.matrix(sample(richness[j,4:5], 1))
+}
+   
+richnessmatrix[,501] <- richness[,2]
+
+result5 <- list()
+for (i in 1:500) result5[[i]] <- runMedusa(mytree, cbind(richness[2],richnessmatrix[,i]), estimateExtinction=T, modelLimit=53, cutAtStem=T, startR = 0.05, startE = 0.5)
+result6 <- list()
+result6[[i]] <- summaryMedusa(mytree, cbind(richness[2],richnessmatrix[,i]), result5[[i]], cutoff=2, plotTree=F, useCorrection=F, cutAtStem=T)
+
+
+```
+
+
+6. More soon
