@@ -1,0 +1,47 @@
+---
+title: "DiversificationRatesMedusaPooids"
+author: "amesclir"
+date: "03/24/2015"
+output: html_document
+---
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+1. getting libraries and sources    
+
+```{r}
+library(ape)
+library(geiger)
+source("fitDiscrete.R")
+source("medusa.R")
+source("node.leaves.R")
+```
+
+2. getting trees and richness table
+
+```{r}
+mytree <- read.tree("mytree.tree")
+mytrees <- read.tree("mytrees.tree")
+richness <- read.csv("species_numbers_new.csv")
+```
+
+3. Prunning the trees
+
+```{r}
+tips <- richness[,2]
+alltips <- mytrees[[1]]$tip.label
+tipstoremove <- setdiff(alltips, tips)
+mytree2 <- drop.tip(mytree, tipstoremove)
+mytrees2 <- list()
+for (i in 1:length(mytrees)) mytrees2[[i]] <- drop.tip(mytrees[[i]], tipstoremove)
+class(mytrees2) <- "multiPhylo"
+```
+
+4. The analysis with one tree and one richness
+
+```{r}
+
+
+
+```
+
