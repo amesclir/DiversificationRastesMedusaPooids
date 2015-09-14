@@ -42,12 +42,11 @@ class(mytrees2) <- "multiPhylo"
 ```{r}
 
 #GRIN database
-result1 <- runMedusa(mytree, richness[2:3], estimateExtinction=T, modelLimit=53, cutAtStem=T, startR = 0.05, startE = 0.5)
-result2 <- summaryMedusa(mytree, richness[2:3], result1, cutoff=4, plotTree=F, useCorrection=F, cutAtStem=T)
+result1 <- runMedusa(mytree2, richness[2:3], estimateExtinction=T, modelLimit=53, cutAtStem=T, startR = 0.05, startE = 0.5)
+result2 <- summaryMedusa(mytree2, richness[2:3], result1, cutoff=4, plotTree=F, useCorrection=F, cutAtStem=T) 
 #CGW database
-result3 <- runMedusa(mytree, richness[-c(1,3:5,7:8)], estimateExtinction=T, modelLimit=53, cutAtStem=T, startR = 0.05, startE = 0.5)
-result4 <- summaryMedusa(mytree, richness[-c(1,3:5,7:8)], result3, cutoff=4, plotTree=T, useCorrection=F, cutAtStem=T)
-
+result3 <- runMedusa(mytree2, richness[-c(1,3:5,7:8)], estimateExtinction=T, modelLimit=53, cutAtStem=T, startR = 0.05, startE = 0.5)
+result4 <- summaryMedusa(mytree2, richness[-c(1,3:5,7:8)], result3, cutoff=4, plotTree=T, useCorrection=F, cutAtStem=T) 
 
 ```
 
@@ -60,15 +59,319 @@ for (i in 1:500) {
 for (j in 1:26) richnessmatrix[j,i] <- as.matrix(sample(richness[j,4:5], 1))
 }
    
-richnessmatrix[,501] <- richness[,2]
 
 result5 <- list()
-for (i in 1:500) result5[[i]] <- runMedusa(mytree, cbind(richness[2],richnessmatrix[,i]), estimateExtinction=T, modelLimit=53, cutAtStem=T, startR = 0.05, startE = 0.5)
+for (i in 1:500) result5[[i]] <- runMedusa(mytree2, cbind(richness[2],richnessmatrix[,i]), estimateExtinction=T, modelLimit=53, cutAtStem=T, startR = 0.05, startE = 0.5)
+
 result6 <- list()
-result6[[i]] <- summaryMedusa(mytree, cbind(richness[2],richnessmatrix[,i]), result5[[i]], cutoff=2, plotTree=F, useCorrection=F, cutAtStem=T)
+ for (i in 1:500) result6[[i]] <- summaryMedusa(mytree2, cbind(richness[2],richnessmatrix[,i]), result5[[i]], cutoff=2, plotTree=F, useCorrection=F, cutAtStem=T)
 
 
 ```
 
 
-6. More soon
+6. Now those are going to summarize result5
+
+```{r}
+
+#mytrees is a list of trees of class phylo
+#run runMedusa like this
+#multiout <- list ()
+#for (i in 1:(length(mytrees))) multiout[[i]] <- runMedusa(mytrees[[i]], speciesrichness, estimateExtinction=T, modelLimit=XX, cutAtStem=T, startR = 0.05, startE = 0.5)
+#modelLimit = XX, XX at least the sum of tips and nodes in your tree
+#multiout2 <- list ()
+#for (i in 1:(length(mytrees))) multiout2[[i]] <- summaryMedusa(mytrees[[i]], speciesrichness, multiout[[i]], cutoff=4, plotTree=F, useCorrection=F, cutAtStem=T)
+#multiout is a list of outputs from function runMedusa
+#mytrees is a list of trees of class phylo
+#with summarymultitreesrunMedusa your get a table with mean and SD of increasing of AIC for each possible node in you trees. You also get the histograms of increasing AIC for the nodes which mean increasing AIC is higher than 0
+
+summarymultitreesrunMedusa <- function (multiout, mytree)
+{
+
+library(geiger)   #before start the analyses you have to install geiger and ape, MASS, mvtnorm, msm, subplex, deSolve, colorspace, digest, Rcpp, coda and lattice
+message("starting analysis...")
+for (i in 1:length(multiout)) multiout[[i]] <- cbind(multiout[[i]],0)   #getting one extra column in the output of runMedusa that we need for the next step
+for (i in 1:length(multiout)) multiout[[i]][c(2:nrow(multiout[[i]])),7] <- as.numeric(multiout[[i]][c(1:(nrow(multiout[[i]])-1)),5]) - as.numeric(multiout[[i]][c(2:nrow(multiout[[i]])),5])  #With this we calculate the increasing or decreasing of AIC when we add a new shift in diversification rates
+multiout <- lapply(multiout, unique)  #RunMedusa output add some extra rows with the same models at the end of each table which are identical. With this we clean that                                                                                                                                                                                    
+for (i in 1:length(multiout)) multiout[[i]] <- subset(multiout[[i]], as.numeric(multiout[[i]][,7]) < -0.000000001 | as.numeric(multiout[[i]][,7]) > 0.000000001)  #Also runMedusa add some models at the end with a increase in AIC close to 0. When we summarize the data it could seem more more strongly suported that other model. With this we clean theese models.
+multioutcomb <- do.call(rbind, multiout)   #We combine the list of table in one table. We can summarize the data using the unique node code.
+MeanDeltaAIC <- tapply(as.numeric(multioutcomb[,7]), multioutcomb[,1],mean)  #We calculate the mean of AIC increasing using the unique node code.
+SDDeltaAIC   <- tapply(as.numeric(multioutcomb[,7]), multioutcomb[,1],sd)    #We calculate the SD of AIC increasing using the unique node code.
+DeltaAIC <- cbind(MeanDeltaAIC,SDDeltaAIC)  #we combine mean and SD
+DeltaAIC <- as.data.frame(DeltaAIC)
+message("summarizing increasings of AIC for each node...")
+cat("\n\nMean AIC and SD for all possible clades","\n" , sep='')
+out <-  (DeltaAIC[order(DeltaAIC$MeanDeltaAIC),])
+
+
+message("getting histograms...")
+DeltaAIC2 <- subset(DeltaAIC, DeltaAIC$MeanDeltaAIC > 4) #getting the names of clades which mean increase of AIC is higher than 0
+rownamesDeltaAIC2 <- as.list(row.names(DeltaAIC2))
+multioutcomb2 <- list()
+for (i in 1:length(rownamesDeltaAIC2)) multioutcomb2[[i]] <- subset(multioutcomb,multioutcomb[,1] == rownamesDeltaAIC2[[i]]) #We create a subset with the data which mean increase of AIC is higher than 0
+par(mfrow = c(1, length(rownamesDeltaAIC2)))  #preparing for plotting, we get a screen with enough column to print different histograms
+for (i in 1:length(multioutcomb2)) hist(as.numeric(multioutcomb2[[i]][,7]), xlab = multioutcomb2[[i]][,1][1], main = multioutcomb2[[i]][,1][1]) #Doing the histograms
+return(out)
+
+}
+
+```
+
+7. Let see the actual result5 summary.
+
+```{r}
+
+summarymultitreesrunMedusaresult5gww <- summarymultitreesrunMedusa (result5gww, mytree2)
+
+summarymultitreesrunMedusaresult5grin <- summarymultitreesrunMedusa (result5grin, mytree2)
+```
+
+8. Now those are going to summarize result6
+
+```{r}
+
+#multiout is a list of outputs from function runMedusa
+#mytrees is a list of trees of class phylo
+#multiut2 is a list of outputs from funtion summaryMedusa
+#with summarymultitreessummaryMedusa you get a table with the mean and SD diversification rates and epsilon for the background and any nodes in your trees that any time has an increasing of AIC equal or higher than the curoff you use when run summaryMedusa
+summarymultitreessummaryMedusa <- function (multiout, mytree, multiout2)
+{
+library(geiger)   #before start the analyses you have to install geiger and ape, MASS, mvtnorm, msm, subplex, deSolve, colorspace, digest, Rcpp, coda and lattice
+message("starting analysis...")
+for (i in 1:length(multiout)) multiout[[i]] <- cbind(multiout[[i]],0)   #getting one extra column in the output of runMedusa that we need for the next step
+for (i in 1:length(multiout)) multiout[[i]][c(2:nrow(multiout[[i]])),7] <- as.numeric(multiout[[i]][c(1:(nrow(multiout[[i]])-1)),5]) - as.numeric(multiout[[i]][c(2:nrow(multiout[[i]])),5])  #With this we calculate the increasing or decreasing of AIC when we add a new shift in diversification rates
+multiout <- lapply(multiout, unique)  #RunMedusa output add some extra rows with the same models at the end of each table which are identical. With this we clean that                                                                                                                                                                                    
+for (i in 1:length(multiout)) multiout[[i]] <- subset(multiout[[i]], as.numeric(multiout[[i]][,7]) < -0.000000001 | as.numeric(multiout[[i]][,7]) > 0.000000001)  #Also runMedusa add some models at the end with a increase in AIC close to 0. When we summarize the data it could seem more more strongly suported that other model. With this we clean theese models.
+
+multioutsubset <- list()
+for (i in 1:length(multiout)) multioutsubset[[i]] <- multiout[[i]][1:(length(multiout2[[i]])-1),]  #With this we remove all unsuported models in multiout which are those which are not represented in multiout2. It may depend of the cutoff you use in summaryMedusa function. Usually is 4.
+
+for (i in 1:length(multiout)) dim(multioutsubset[[i]]) <- c(length(multiout2[[i]])-1 , 7)
+
+for (i in 1:length(multiout)) multioutsubset[[i]] <- cbind(multioutsubset[[i]],0)    #getting one extra column in the output of runMedusa that we need for the next step
+#With this doble loop we get the diversification rates for each clade from multiout2 and we paste that value in the subdata set of multiout
+for (i in 1:length(multiout)) {
+for (j in 1:length(multioutsubset[[i]][,7])) multioutsubset[[i]][j,8] <- multiout2[[i]][[j+1]]$par[1]
+}
+
+for (i in 1:length(multiout)) multioutsubset[[i]] <- cbind(multioutsubset[[i]],0)   #getting one extra column in the output of runMedusa that we need for the next step
+#With this doble loop we get epsilon for each clade from multiout2 and we paste that value in the subdata set of multiout
+for (i in 1:length(multiout)) {
+for (j in 1:length(multioutsubset[[i]][,7])) multioutsubset[[i]][j,9] <- multiout2[[i]][[j+1]]$par[2]
+}
+
+message("summarizing diversification rates and epsilon for each node...")
+multioutsubsetcomb <- do.call(rbind, multioutsubset) #combining the list of table in a single table
+MeanDiversication  <- tapply(as.numeric(multioutsubsetcomb[,8]), multioutsubsetcomb[,1],mean)      #calculating mean diversification rates for each posible node
+SDDiversication    <- tapply(as.numeric(multioutsubsetcomb[,9]), multioutsubsetcomb[,1],sd)        #calculating SD of diversification rates for each posible node
+MeanEpsilon        <- tapply(as.numeric(multioutsubsetcomb[,10]), multioutsubsetcomb[,1],mean)     #calculating mean epsilon for each posible node
+SDEpsilon          <- tapply(as.numeric(multioutsubsetcomb[,10]), multioutsubsetcomb[,1],sd)       #calculating SD epsilon for each posible node
+
+background <- list()
+for (i in 1:length(mytrees)) background[[i]] <- c(0,0)   #creating a list of table with room for two parameters
+for (i in 1:length(mytrees)) background[[i]][1] <- multiout2[[i]][[1]]$par[1]  #getting diversification rates of the background
+for (i in 1:length(mytrees)) background[[i]][2] <- multiout2[[i]][[1]]$par[2]  #getting epsilon of the background
+backgroundcomb <- do.call(rbind, background)    #combining the tables 
+BackgroundMeanDiversication  <- mean(as.numeric(backgroundcomb[,1]))    #calculating mean diversification rates for background  
+BackgroundSDDiversication    <- sd(as.numeric(backgroundcomb[,1]))      #calculating SD diversification rates for background
+BackgroundMeanEpsilon        <- mean(as.numeric(backgroundcomb[,2]))    #calculating mean epsilon for background
+BackgroundSDEpsilon          <- sd(as.numeric(backgroundcomb[,2]))      #calculating SD epsilon for background
+BackgroundRates <- c(BackgroundMeanDiversication, BackgroundSDDiversication,BackgroundMeanEpsilon,BackgroundSDEpsilon) #Combining background data
+
+Rates <- cbind(MeanDiversication,SDDiversication,MeanEpsilon,SDEpsilon) #Combining data from nodes
+
+Rates <- rbind (Rates,BackgroundRates)   #Combining data from nodes and background
+
+Rates <- as.data.frame(Rates)
+
+cat("\n\nMean and SD for Diversification and Epsilon for all clades shifts","\n" , sep='')
+out <- Rates[order(Rates[1]),]
+return(out)
+
+}
+
+
+```
+
+9. Let see the actual result6 summary.
+
+```{r}
+
+summarymultitreessummaryMedusaresult6gww <- summarymultitreessummaryMedusa (result5gww, mytree2, result6gww)
+
+summarymultitreessummaryMedusaresult6grin <- summarymultitreessummaryMedusa (result5grin, mytree2, result6grin)
+
+```
+
+10. New code for having into account several trees.
+
+```{r}
+#mytrees is a list of trees of class phylo
+#run runMedusa like this
+#multiout <- list ()
+#for (i in 1:(length(mytrees))) multiout[[i]] <- runMedusa(mytrees[[i]], speciesrichness, estimateExtinction=T, modelLimit=XX, cutAtStem=T, startR = 0.05, startE = 0.5)
+#modelLimit = XX, XX at least the sum of tips and nodes in your tree
+#multiout2 <- list ()
+#for (i in 1:(length(mytrees))) multiout2[[i]] <- summaryMedusa(mytrees[[i]], speciesrichness, multiout[[i]], cutoff=4, plotTree=F, useCorrection=F, cutAtStem=T)
+#multiout is a list of outputs from function runMedusa
+#mytrees is a list of trees of class phylo
+#with summarymultitreesrunMedusa your get a table with mean and SD of increasing of AIC for each possible node in you trees. You also get the histograms of increasing AIC for the nodes which mean increasing AIC is higher than 0
+summarymultitreesrunMedusa <- function (multiout, mytrees)
+{
+library(geiger)   #before start the analyses you have to install geiger and ape, MASS, mvtnorm, msm, subplex, deSolve, colorspace, digest, Rcpp, coda and lattice
+message("starting analysis...")
+tips <- mytrees[[1]]$tip.label   #getting tips labels
+hashestrees=lapply(mytrees, function(x) hashes.phylo(x, tips=tips))   #creating hashes trees. This is only possible with the last version of geiger. You new to install it from source code
+hashestrees2 <- list()
+for (i in 1:length(mytrees)) hashestrees2[[i]] <- cbind(hashestrees[[i]]$hash, 1:length(hashestrees[[1]]$hash))  #for each tree we create a table with node code and node number
+for (i in 1:length(mytrees)) multiout[[i]] <- cbind(multiout[[i]],0)     #getting one extra column in the output of runMedusa that we need for the next step
+for (i in 1:length(mytrees)) multiout[[i]][,7] <- hashestrees2[[i]][,1][match(multiout[[i]][,1],hashestrees2[[i]][,2])]  #By doing this we add the unique node code and later we can match the results from the same node
+for (i in 1:length(mytrees)) multiout[[i]] <- cbind(multiout[[i]],0)   #getting one extra column in the output of runMedusa that we need for the next step
+for (i in 1:length(mytrees)) multiout[[i]][c(2:nrow(multiout[[i]])),8] <- as.numeric(multiout[[i]][c(1:(nrow(multiout[[i]])-1)),5]) - as.numeric(multiout[[i]][c(2:nrow(multiout[[i]])),5])  #With this we calculate the increasing or decreasing of AIC when we add a new shift in diversification rates
+multiout <- lapply(multiout, unique)  #RunMedusa output add some extra rows with the same models at the end of each table which are identical. With this we clean that                                                                                                                                                                                    
+for (i in 1:length(mytrees)) multiout[[i]] <- subset(multiout[[i]], as.numeric(multiout[[i]][,8]) < -0.000000001 | as.numeric(multiout[[i]][,8]) > 0.000000001)  #Also runMedusa add some models at the end with a increase in AIC close to 0. When we summarize the data it could seem more more strongly suported that other model. With this we clean theese models.
+multioutcomb <- do.call(rbind, multiout)   #We combine the list of table in one table. We can summarize the data using the unique node code.
+
+lengthNode <- tapply(as.numeric(multioutcomb[,8]), multioutcomb[,7],length)
+lengthNodePositive <- tapply(as.numeric(multioutcomb[,8][multioutcomb[,8]>=0]), multioutcomb[,7][multioutcomb[,8]>=0],length)
+NodeInformation <- merge(as.data.frame(lengthNode),as.data.frame(lengthNodePositive), by="row.names", all = TRUE)
+MeanDeltaAIC <- tapply(as.numeric(multioutcomb[,8]), multioutcomb[,7],mean)  #We calculate the mean of AIC increasing using the unique node code.
+SDDeltaAIC   <- tapply(as.numeric(multioutcomb[,8]), multioutcomb[,7],sd)    #We calculate the SD of AIC increasing using the unique node code.
+DeltaAIC <- cbind(MeanDeltaAIC,SDDeltaAIC,NodeInformation)  #we combine mean and SD
+
+DeltaAIC <- as.data.frame(DeltaAIC)
+message("summarizing increasings of AIC for each node...")
+cat("\n\nMean AIC and SD for all possible clades","\n" , sep='')
+out <-  (DeltaAIC[order(DeltaAIC$MeanDeltaAIC),])
+
+
+message("getting histograms...")
+DeltaAIC2 <- subset(DeltaAIC, DeltaAIC$MeanDeltaAIC > 1.1) #getting the names of clades which mean increase of AIC is higher than 0
+rownamesDeltaAIC2 <- as.list(row.names(DeltaAIC2))
+multioutcomb2 <- list()
+for (i in 1:length(rownamesDeltaAIC2)) multioutcomb2[[i]] <- subset(multioutcomb,multioutcomb[,7] == rownamesDeltaAIC2[[i]]) #We create a subset with the data which mean increase of AIC is higher than 0
+par(mfrow = c(2, (length(rownamesDeltaAIC2)+1)/2))  #preparing for plotting, we get a screen with enough column to print different histograms
+for (i in 1:length(multioutcomb2)) hist(as.numeric(multioutcomb2[[i]][,8]), xlab = multioutcomb2[[i]][,7][1], main = multioutcomb2[[i]][,7][1]) #Doing the histograms
+return(out)
+}
+
+
+```
+
+11. Let see the actual resultGRIN500 summary.
+And resultGGW500.
+
+```{r}
+
+summarymultitreesrunMedusaresult5GRIN500 <- summarymultitreesrunMedusa (resultGRIN500, mytrees2)
+
+summarymultitreesrunMedusaresult5GGW500 <- summarymultitreesrunMedusa (result500GGW, mytrees2)
+
+```
+
+12. This function will allow us to recognize the nodes later
+```{r}
+#With phylohashescode function you get the hashes code for all you trees.
+phylohashescode <- function(mytrees)
+{
+message("starting analysis...")
+tips <- mytrees[[1]]$tip.label   #getting tips labels
+hashestrees=lapply(mytrees, function(x) hashes.phylo(x, tips=tips))   #creating hashes trees. This is only possible with the last version of geiger. You new to install it from source code
+#This part is from Dr. Eastman
+message("getting node codes...")
+cat("\n\nUSE phylohashescode FUNCTION TO CREATE A LIST FOR NODE KEYS", "\n" , sep="")
+
+for(i in 1:length(hashestrees)) names(hashestrees[[i]]$desc$tips) = hashestrees[[i]]$hash
+ntips <- 1:length(hashestrees[[1]]$tip.label)
+names(tips) = ntips
+for(i in 1:length(hashestrees)) {
+for (j in 1:length(hashestrees[[1]]$desc$tips)) hashestrees[[i]]$desc$tips[[j]] <- tips[intersect(hashestrees[[i]]$desc$tips[[j]],names(tips))]
+}
+return(hashestrees)     
+}
+
+
+```
+
+13. Function to summarize analysis 6 with several trees
+```{r}
+
+#multiout is a list of outputs from function runMedusa
+#mytrees is a list of trees of class phylo
+#multiut2 is a list of outputs from funtion summaryMedusa
+#with summarymultitreessummaryMedusa you get a table with the mean and SD diversification rates and epsilon for the background and any nodes in your trees that any time has an increasing of AIC equal or higher than the curoff you use when run summaryMedusa
+summarymultitreessummaryMedusa <- function (multiout, mytrees, multiout2)
+{
+library(geiger)   #before start the analyses you have to install geiger and ape, MASS, mvtnorm, msm, subplex, deSolve, colorspace, digest, Rcpp, coda and lattice
+message("starting analysis...")
+tips <- mytrees[[1]]$tip.label   #getting tips labels
+hashestrees=lapply(mytrees, function(x) hashes.phylo(x, tips=tips))        #creating hashes trees. This is only possible with the last version of geiger. You new to install it from source code
+hashestrees2 <- list()
+for (i in 1:length(mytrees)) hashestrees2[[i]] <- cbind(hashestrees[[i]]$hash,1:length(hashestrees[[1]]$hash))       #for each tree we create a table with node code and node number
+for (i in 1:length(mytrees)) multiout[[i]] <- cbind(multiout[[i]],0)          #getting one extra column in the output of runMedusa that we need for the next step
+for (i in 1:length(mytrees)) multiout[[i]][,7] <- hashestrees2[[i]][,1][match(multiout[[i]][,1],hashestrees2[[i]][,2])]
+for (i in 1:length(mytrees)) multiout[[i]] <- cbind(multiout[[i]],0)          #getting one extra column in the output of runMedusa that we need for the next step
+for (i in 1:length(mytrees)) multiout[[i]][c(2:nrow(multiout[[i]])),8] <- as.numeric(multiout[[i]][c(1:(nrow(multiout[[i]])-1)),5]) - as.numeric(multiout[[i]][c(2:nrow(multiout[[i]])),5])     #With this we calculate the increasing or decreasing of AIC when we add a new shift in diversification rates
+multiout <- lapply(multiout, unique)           #RunMedusa output add some extra rows with the same models at the end of each table which are identical. With this we clean that
+for (i in 1:length(mytrees)) multiout[[i]] <- subset(multiout[[i]], as.numeric(multiout[[i]][,8]) < -0.000000001 | as.numeric(multiout[[i]][,8]) > 0.000000001)      #Also runMedusa add some models at the end with a increase in AIC close to 0. When we summarize the data it could seem more more strongly suported that other model. With this we clean theese models.
+
+multioutsubset <- list()
+for (i in 1:length(mytrees)) multioutsubset[[i]] <- multiout[[i]][1:(length(multiout2[[i]])-1),]  #With this we remove all unsuported models in multiout which are those which are not represented in multiout2. It may depend of the cutoff you use in summaryMedusa function. Usually is 4.
+
+for (i in 1:length(mytrees)) dim(multioutsubset[[i]]) <- c(length(multiout2[[i]])-1 , 8)
+
+for (i in 1:length(mytrees)) multioutsubset[[i]] <- cbind(multioutsubset[[i]],0)    #getting one extra column in the output of runMedusa that we need for the next step
+#With this doble loop we get the diversification rates for each clade from multiout2 and we paste that value in the subdata set of multiout
+for (i in 1:length(mytrees)) {
+for (j in 1:length(multioutsubset[[i]][,8])) multioutsubset[[i]][j,9] <- multiout2[[i]][[j+1]]$par[1]
+}
+
+for (i in 1:length(mytrees)) multioutsubset[[i]] <- cbind(multioutsubset[[i]],0)   #getting one extra column in the output of runMedusa that we need for the next step
+#With this doble loop we get epsilon for each clade from multiout2 and we paste that value in the subdata set of multiout
+for (i in 1:length(mytrees)) {
+for (j in 1:length(multioutsubset[[i]][,8])) multioutsubset[[i]][j,10] <- multiout2[[i]][[j+1]]$par[2]
+}
+
+message("summarizing diversification rates and epsilon for each node...")
+multioutsubsetcomb <- do.call(rbind, multioutsubset) #combining the list of table in a single table
+MeanDiversication  <- tapply(as.numeric(multioutsubsetcomb[,9]), multioutsubsetcomb[,7],mean)      #calculating mean diversification rates for each posible node
+SDDiversication    <- tapply(as.numeric(multioutsubsetcomb[,9]), multioutsubsetcomb[,7],sd)        #calculating SD of diversification rates for each posible node
+MeanEpsilon        <- tapply(as.numeric(multioutsubsetcomb[,10]), multioutsubsetcomb[,7],mean)     #calculating mean epsilon for each posible node
+SDEpsilon          <- tapply(as.numeric(multioutsubsetcomb[,10]), multioutsubsetcomb[,7],sd)       #calculating SD epsilon for each posible node
+
+background <- list()
+for (i in 1:length(mytrees)) background[[i]] <- c(0,0)   #creating a list of table with room for two parameters
+for (i in 1:length(mytrees)) background[[i]][1] <- multiout2[[i]][[1]]$par[1]  #getting diversification rates of the background
+for (i in 1:length(mytrees)) background[[i]][2] <- multiout2[[i]][[1]]$par[2]  #getting epsilon of the background
+backgroundcomb <- do.call(rbind, background)    #combining the tables 
+BackgroundMeanDiversication  <- mean(as.numeric(backgroundcomb[,1]))    #calculating mean diversification rates for background  
+BackgroundSDDiversication    <- sd(as.numeric(backgroundcomb[,1]))      #calculating SD diversification rates for background
+BackgroundMeanEpsilon        <- mean(as.numeric(backgroundcomb[,2]))    #calculating mean epsilon for background
+BackgroundSDEpsilon          <- sd(as.numeric(backgroundcomb[,2]))      #calculating SD epsilon for background
+BackgroundRates <- c(BackgroundMeanDiversication, BackgroundSDDiversication,BackgroundMeanEpsilon,BackgroundSDEpsilon) #Combining background data
+
+Rates <- cbind(MeanDiversication,SDDiversication,MeanEpsilon,SDEpsilon) #Combining data from nodes
+
+Rates <- rbind (Rates,BackgroundRates)   #Combining data from nodes and background
+
+Rates <- as.data.frame(Rates)
+
+cat("\n\nMean and SD for Diversification and Epsilon for all clades shifts","\n" , sep='')
+out <- Rates[order(Rates[1]),]
+return(out)
+
+}
+
+```
+
+
+11. Let see the actual result6GRIN500 summary.
+And result6GGW500.
+
+```{r}
+
+summarymultitreessummaryMedusaresult6GRIN500 <- summarymultitreessummaryMedusa (resultGRIN500, mytrees2, result6grin500)
+
+summarymultitreessummaryMedusaresult6GGW500 <- summarymultitreessummaryMedusa (result500GGW, mytrees2, result6ggw500)
+
+```
